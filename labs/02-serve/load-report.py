@@ -123,11 +123,12 @@ def main() -> int:
                 f"is the limit -- look at memory bandwidth, or context/KV pressure."
             )
         elif slots_pegged:
-            verdict = "**At capacity, still scaling.**"
+            verdict = "**Slot capacity reached; throughput still rises.**"
             because = (
-                f"All {slots} decode slots are busy (effective concurrency {conc:.1f}) but "
-                f"throughput still rose {rps_ratio:.2f}x. You are at the knee -- the next "
-                f"increment of load is where P95 starts to run away."
+                f"Effective concurrency ({conc:.1f}) exceeds the {slots} decode slots, "
+                f"while throughput still rose {rps_ratio:.2f}x. Some requests may "
+                "wait for a slot. These two load levels do not locate the exact "
+                "throughput knee; check the server's deferred-request gauge."
             )
         else:
             verdict = "**Not saturated.**"
@@ -137,16 +138,26 @@ def main() -> int:
                 f"where that knee sits."
             )
 
-        goodput = (
-            f"Throughput moved {rps_ratio:.2f}x while P95 moved {p95_ratio:.2f}x. That gap is the "
-            f"goodput argument: past saturation you buy throughput by spending latency, and if "
-            f"your SLO is a P95 target then the requests you added are no longer being served "
-            f"within it. (This lab does not fix an SLO number for you -- pick one in your "
-            f"write-up and state how much goodput you keep at it.)"
-            if p95_ratio > rps_ratio else
-            f"P95 grew no faster than throughput ({p95_ratio:.2f}x vs {rps_ratio:.2f}x), so this "
-            f"server still has headroom at {u2} users."
-        )
+        if p95_ratio > rps_ratio:
+            goodput = (
+                f"Throughput moved {rps_ratio:.2f}x while P95 moved {p95_ratio:.2f}x. "
+                "At a fixed latency SLO, this tail-latency increase can reduce goodput "
+                "even when RPS rises. Pick an SLO in your write-up and state how many "
+                "requests meet it."
+            )
+        elif slots_pegged:
+            goodput = (
+                f"P95 grew less than throughput ({p95_ratio:.2f}x vs {rps_ratio:.2f}x), "
+                f"but effective concurrency is at or above the {slots} slots. This does "
+                "not establish spare capacity: inspect deferred requests and report "
+                "goodput against a stated latency SLO."
+            )
+        else:
+            goodput = (
+                f"P95 grew less than throughput ({p95_ratio:.2f}x vs {rps_ratio:.2f}x) "
+                "and effective concurrency is below the slot count. These two runs do "
+                "not show a slot limit; test more load before claiming saturation."
+            )
 
         analysis = f"""
 ## What these two runs say
