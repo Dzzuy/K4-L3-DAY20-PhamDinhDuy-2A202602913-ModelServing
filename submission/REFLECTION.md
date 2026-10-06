@@ -157,19 +157,30 @@ kiểm tra P95/goodput ở load thực tế trước khi đổi cấu hình ph�
 > Bỏ trống nếu không làm. Xem `docs/bonus/README.md`. Đừng làm hết — **một** finding sâu
 > ăn điểm hơn năm bảng nông.
 
-**Đã làm:** _<B1 build-compare / B2 sweep nào / B4 challenge nào / B5 lựa chọn nào>_
+**Đã làm:** B1 build llama.cpp bản native và so với prebuilt; B2 sweep số layer
+offload trên NVIDIA T500 (`Vulkan1`); B4 challenge C7 so bản CPU native với
+bản generic; B5 challenge C9 chạy embedding server thật và đo batch size.
+Các số đo chi tiết nằm trong các file `benchmarks/bonus-*.md`.
 
 **Numbers:**
 
 ```
-before:  <số>
-after:   <số>
-speedup: <X.Y>×
+before:  29.4 tok/s (-ngl 0, CPU)
+after:   57.3 tok/s (-ngl 32, NVIDIA T500 qua Vulkan1)
+speedup: 1.95×
 ```
 
 **Điều này nói lên gì mà deck chưa nói:**
 
-_(để trống nếu bạn không làm phần này)_
+Điều tôi thấy là không nên lấy `-ngl 99` làm mặc định rồi kết luận đã tối ưu.
+Với model nhỏ này, `-ngl 32` và 99 chỉ lệch khoảng 1%, nên tôi xem chúng gần
+như ngang nhau; phép đo không cho thấy hết VRAM. Lần sweep đầu chạy cùng lúc
+với compiler cho CPU baseline thấp hơn nhiều, nên tôi dùng lần đo tập trung
+không có compiler và lặp lại để kiểm tra xu hướng. B1 riêng trên CPU chỉ tăng
+17.0 lên 17.9 tok/s (1.05×). Ở C7, native hơn generic 1.31× khi prefill nhưng
+chỉ 1.08× khi decode, hợp với việc prefill có nhiều phép tính vector hơn còn
+decode dễ bị giới hạn bởi việc đọc weights. C9 cho thấy batch 16 tăng thông
+lượng embedding lên 15.0 từ 10.0 văn bản/s, nhưng latency cả batch cũng tăng.
 
 ---
 
@@ -177,7 +188,9 @@ _(để trống nếu bạn không làm phần này)_
 
 _(1–2 câu. Không bắt buộc, nhưng grader đọc hết.)_
 
-_(để trống nếu bạn không làm phần này)_
+Tôi bất ngờ vì build native giúp prefill rõ hơn decode, còn offload 32 layer
+đã gần bằng 99 layer. Một con số speedup lớn không đủ nếu không giữ workload
+và điều kiện chạy giống nhau.
 
 ---
 

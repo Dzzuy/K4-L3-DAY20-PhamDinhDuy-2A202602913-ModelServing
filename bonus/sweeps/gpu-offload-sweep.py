@@ -26,6 +26,8 @@ def main() -> int:
     ap.add_argument("--grid", default="0,8,16,24,32,99")
     ap.add_argument("--metric", default="tg128")
     ap.add_argument("--reps", type=int, default=2)
+    ap.add_argument("--device", default=None,
+                    help="llama.cpp device id, e.g. Vulkan1 on a multi-GPU host")
     args = ap.parse_args()
 
     hw = labkit.load_hardware()
@@ -42,12 +44,14 @@ def main() -> int:
     shape = ["-p", args.metric[2:], "-n", "0"] if is_prefill else ["-p", "0", "-n", "128"]
 
     labkit.banner(f"GPU offload sweep on {pathlib.Path(model).name}")
-    print(f"  backend(s): {', '.join(active)} · threads {threads} · grid {grid}\n")
+    print(f"  hardware probe: {', '.join(active)} · runtime device {args.device or 'auto'} · "
+          f"threads {threads} · grid {grid}\n")
 
     rows = []
     for ngl in grid:
+        device_args = ["-dev", args.device] if args.device else []
         out = labkit.run_bench(["-m", model, "-t", str(threads), "-ngl", str(ngl),
-                                *shape, "-r", str(args.reps)])
+                                *device_args, *shape, "-r", str(args.reps)])
         tps = labkit.bench_metric(out, args.metric)
         rows.append({"ngl": ngl, "tok_s": tps})
         print(f"   -ngl {ngl:3d}   {args.metric} = {tps:8.1f} tok/s")
@@ -66,17 +70,19 @@ def main() -> int:
     speedup = (best["tok_s"] / cpu_only) if cpu_only else 0.0
     md = f"""# Bonus - GPU offload sweep
 
-Host `{labkit.host_tag()}` · backend(s) `{', '.join(active)}` ·
-llama.cpp `{labkit.LLAMA_CPP_BUILD}` · `threads={threads}` · metric `{args.metric}`
+Host `{labkit.host_tag()}` · hardware probe `{', '.join(active)}` ·
+llama.cpp `{labkit.LLAMA_CPP_BUILD}` · `threads={threads}` ·
+runtime device `{args.device or 'auto'}` · metric `{args.metric}` ·
+repetitions `{args.reps}`
 
 {table}
 
 Best: `-ngl {best['ngl']}` at {best['tok_s']:.1f} tok/s
 {f"-- {speedup:.2f}x faster than CPU-only." if speedup else ""}
 
-Where the curve flattens tells you the model ran out of layers to move. Where it
-*peaks below* full offload tells you something did not fit and the accelerator
-started paying to fetch weights it could not hold.
+Once all model layers are offloaded, increasing `-ngl` cannot move more layers.
+A lower result at `-ngl 99` than at a partial setting may also be run-to-run
+noise or host contention; this sweep alone cannot establish a VRAM bottleneck.
 
 ## Your finding (required -- replace this line)
 

@@ -46,27 +46,24 @@ def run(bench: pathlib.Path, model: str, threads: int, ngl: int, metric: str, re
     return labkit.bench_metric(proc.stdout + proc.stderr, metric)
 
 
-def version_of(binary: pathlib.Path) -> str:
-    proc = subprocess.run([str(binary), "--version"], capture_output=True, text=True, check=False)
-    text = (proc.stdout + proc.stderr).strip().splitlines()
-    return text[0] if text else "unknown"
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="Prebuilt vs source-built llama.cpp (bonus B1).")
     ap.add_argument("--metric", default="tg128", help="tg128 = decode, pp512 = prefill")
     ap.add_argument("--reps", type=int, default=3)
+    ap.add_argument("--source-bench", type=pathlib.Path, default=None,
+                    help="Explicit source-built llama-bench, useful with multiple build directories")
     args = ap.parse_args()
 
     pre = prebuilt_bench()
-    src = labkit.source_build_bin("llama-bench")
+    src = args.source_bench or labkit.source_build_bin("llama-bench")
     if not pre:
         labkit.die("No prebuilt llama-bench in runtime/.", "Run: make setup")
-    if not src:
+    if not src or not src.is_file():
         labkit.die(
             "No source build found at bonus/llama.cpp/.",
             "Build it first: make build-llama",
         )
+    src = src.resolve()
 
     hw = labkit.load_hardware()
     model = str(labkit.repo_root() / labkit.load_active()["primary_model"])
@@ -89,9 +86,8 @@ def main() -> int:
     print(f"  threads : {threads}   ngl: {ngl}")
     print(f"  CPU     : {cpu.get('model', '?')}  [{', '.join(exts) or 'no vector extensions detected'}]")
     print(f"\n  prebuilt: {pre.relative_to(labkit.repo_root())}")
-    print(f"            {version_of(pre)}")
     print(f"  source  : {src.relative_to(labkit.repo_root())}")
-    print(f"            {version_of(src)}\n")
+    print()
 
     print(f"  devices : prebuilt {pre_dev or ['(none - CPU)']}")
     print(f"            source   {src_dev or ['(none - CPU)']}")

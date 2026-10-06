@@ -1,0 +1,12 @@
+{
+  "pp512": {
+    "generic_tok_s": 77.15,
+    "native_tok_s": 101.11,
+    "native_over_generic": 1.3105638366817887
+  },
+  "tg128": {
+    "generic_tok_s": 13.84,
+    "native_tok_s": 14.94,
+    "native_over_generic": 1.079479768786127
+  }
+}
